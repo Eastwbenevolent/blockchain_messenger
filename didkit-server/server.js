@@ -30,33 +30,37 @@
   app.post('/vc/issue', async (req, res) => {
     const { issuer, subject } = req.body
 
-    // 기본 유효성 검사 (옵션이지만 있으면 좋음)
+    // ✅ 유효성 검사
     if (!subject?.id || !subject?.name) {
       return res.status(400).send({ error: 'subject.id와 subject.name이 필요합니다.' })
-  }
+    }
 
-  const vc = await agent.createVerifiableCredential({
-    credential: {
-      '@context': ['https://www.w3.org/2018/credentials/v1'],  // 권장 명시
-      type: ['VerifiableCredential'],
-      issuer,
-      issuanceDate: new Date().toISOString(),
-      credentialSubject: {
-        id: subject.id,
-        name: subject.name,
-      },
-    },
-    proofFormat: 'jwt',
+    try {
+      const vc = await agent.createVerifiableCredential({
+        credential: {
+          issuer,
+          issuanceDate: new Date().toISOString(),
+          credentialSubject: {
+            id: subject.id,
+            name: subject.name, // ✅ name도 꼭 포함
+          },
+          '@context': ['https://www.w3.org/2018/credentials/v1'],
+          type: ['VerifiableCredential'],
+        },
+        proofFormat: 'jwt',
+      })
+
+      const jwt = typeof vc === 'string' ? vc : vc?.proof?.jwt
+      if (!jwt) {
+        return res.status(500).send({ error: 'JWT VC 발급 실패' })
+      }
+
+      return res.send({ jwt })
+    } catch (err) {
+      console.error('❌ VC 발급 중 오류:', err)
+      return res.status(500).send({ error: 'VC 발급 중 내부 오류', detail: err.message })
+    }
   })
-
-  const jwt = typeof vc === 'string' ? vc : vc?.proof?.jwt
-
-  if (!jwt) {
-    return res.status(500).send({ error: 'JWT VC 발급 실패' })
-  }
-
-  return res.send({ jwt })  // 🔥 꼭 res.send 사용!
-})
 
 
   // VC 검증
