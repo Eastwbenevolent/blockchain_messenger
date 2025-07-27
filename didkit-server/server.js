@@ -28,39 +28,46 @@
 
   // VC 발급
   app.post('/vc/issue', async (req, res) => {
-    const { issuer, subject } = req.body
+  const { issuer, subject = {} } = req.body
 
-    // ✅ 유효성 검사
-    if (!subject?.id || !subject?.name) {
-      return res.status(400).send({ error: 'subject.id와 subject.name이 필요합니다.' })
-    }
+  // ✅ 여기에서 vc를 사용하면 안 됨!! subject로부터 직접 추출해야 함
+  const subjectId = subject.id || subject.did
+  const subjectName = subject.name
 
-    try {
-      const vc = await agent.createVerifiableCredential({
-        credential: {
-          issuer,
-          issuanceDate: new Date().toISOString(),
-          credentialSubject: {
-            id: subject.id,
-            name: subject.name, // ✅ name도 꼭 포함
-          },
-          '@context': ['https://www.w3.org/2018/credentials/v1'],
-          type: ['VerifiableCredential'],
+  if (!subjectId || !subjectName) {
+    return res
+      .status(400)
+      .send({ error: 'subject.id나 subject.did와 subject.name이 필요합니다.' })
+  }
+
+  try {
+    const vc = await agent.createVerifiableCredential({
+      credential: {
+        issuer,
+        issuanceDate: new Date().toISOString(),
+        credentialSubject: {
+          id: subjectId,
+          name: subjectName,
         },
-        proofFormat: 'jwt',
-      })
+        '@context': ['https://www.w3.org/2018/credentials/v1'],
+        type: ['VerifiableCredential'],
+      },
+      proofFormat: 'jwt',
+    })
 
-      const jwt = typeof vc === 'string' ? vc : vc?.proof?.jwt
-      if (!jwt) {
-        return res.status(500).send({ error: 'JWT VC 발급 실패' })
-      }
-
-      return res.send({ jwt })
-    } catch (err) {
-      console.error('❌ VC 발급 중 오류:', err)
-      return res.status(500).send({ error: 'VC 발급 중 내부 오류', detail: err.message })
+    const jwt = typeof vc === 'string' ? vc : vc?.proof?.jwt
+    if (!jwt) {
+      return res.status(500).send({ error: 'JWT VC 발급 실패' })
     }
-  })
+
+    return res.send({ jwt })
+  } catch (err) {
+    console.error('❌ VC 발급 중 오류:', err)
+    return res.status(500).send({ error: 'VC 발급 중 내부 오류', detail: err.message })
+  }
+})
+
+  
 
 
   // VC 검증

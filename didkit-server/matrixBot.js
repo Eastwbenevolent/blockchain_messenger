@@ -116,19 +116,26 @@ async function startBot() {
       let msg
 
       if (verified) {
-        const issuer = vc.issuer || '알 수 없음'
-        const subject = vc.credentialSubject?.id || '알 수 없음'
-        const types = Array.isArray(vc.type)
-          ? vc.type.filter(t => t !== 'VerifiableCredential').join(', ')
-          : '명시되지 않음'
-        const issuedAt = vc.issuanceDate
-          ? new Date(vc.issuanceDate).toLocaleString('ko-KR')
-          : '날짜 없음'
+        const issuer = vc.issuer || vc.iss || '알 수 없음'
+        // 수정
+        const subjectDid =
+          vc.credentialSubject?.id || // LD-VC 형태로 전달될 때
+          vc.credentialSubject?.did || // 사용자가 did 키를 썼을 때
+          vc.sub ||                    // JWT VC에서는 sub 클레임에 저장됨
+          '알 수 없음';
+          const types = Array.isArray(vc.type || vc.vc?.type)
+            ? (vc.type || vc.vc?.type).filter(t => t !== 'VerifiableCredential').join(', ')
+            : '명시되지 않음'
+
+          const issuedAt = vc.issuanceDate || vc.nbf
+            ? new Date(vc.issuanceDate || vc.nbf * 1000).toLocaleString('ko-KR')
+            : '날짜 없음'   
+
 
         msg = [
           '✅ [VC 검증 완료]',
           `발급자 DID: ${issuer}`,
-          `대상자 DID: ${subject}`,
+          `대상자 DID: ${subjectDid}`,
           `VC 종류: ${types}`,
           `발급일: ${issuedAt}`,
           '',
