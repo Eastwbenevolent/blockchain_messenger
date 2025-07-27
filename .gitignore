@@ -1,1 +1,31 @@
+# 공통 Node
 node_modules/
+npm-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+*.log
+.DS_Store
+
+# 환경변수
+.env
+.env.local
+*.env.local
+!.env.example
+
+# 빌드 산출물
+dist/
+build/
+coverage/
+
+# --- didkit-server ---
+/didkit-server/database.sqlite
+/didkit-server/agent-data.json
+/didkit-server/matrix/matrix-storage.json
+/didkit-server/.env
+/didkit-server/logs/
+/didkit-server/vc.json
+
+# --- dashboard (React/Vite) ---
+/dashboard/node_modules/
+/dashboard/dist/
+/dashboard/.env
