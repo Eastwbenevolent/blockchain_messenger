@@ -1,44 +1,114 @@
-import Fastify from 'fastify'
-import dotenv from 'dotenv'
-dotenv.config()
+  // server.js
+  import dotenv from 'dotenv'
+  dotenv.config()
+  import Fastify from 'fastify'
+  import { setupAgent } from './agent.js'
+  import { createRequire } from 'module'
 
-import { setupAgent } from './agent.js'
+  const app = Fastify({ logger: true })
+  const agent = await setupAgent()
+  const require = createRequire(import.meta.url)
+  const { decodeJWT } = require('./decode-jwt.cjs') // ✅ OK
 
-const app = Fastify({ logger: true })
-const agent = await setupAgent()
 
-// ✅ 에이전트가 관리하는 DID 없으면 하나 자동 생성
-const dids = await agent.didManagerFind()
-if (dids.length === 0) {
-  const newDid = await agent.didManagerCreate()
-  console.log('🆕 새 DID 생성됨:', newDid.did)
-} else {
-  console.log('✅ 기존 DID 목록:', dids.map(d => d.did))
-}
 
-app.post('/vc/issue', async (req, res) => {
-  const { issuer, subject } = req.body
-  const credential = await agent.createVerifiableCredential({
+  // ✅ 허용된 발급자 목록
+  const allowedIssuers = [
+    'did:key:z6MkkH9QT9rUxnbwPRwTeatB48yrXwv5apPqXUwjZk4mnG3o'
+  ]
+
+  // 🧠 DID 자동 생성
+  const dids = await agent.didManagerFind()
+  if (dids.length === 0) {
+    const newDid = await agent.didManagerCreate()
+    console.log('🆕 새 DID 생성됨:', newDid.did)
+  } else {
+    console.log('✅ 기존 DID 목록:', dids.map(d => d.did))
+  }
+
+  // VC 발급
+  app.post('/vc/issue', async (req, res) => {
+    const { issuer, subject } = req.body
+
+    // 기본 유효성 검사 (옵션이지만 있으면 좋음)
+    if (!subject?.id || !subject?.name) {
+      return res.status(400).send({ error: 'subject.id와 subject.name이 필요합니다.' })
+  }
+
+  const vc = await agent.createVerifiableCredential({
     credential: {
+      '@context': ['https://www.w3.org/2018/credentials/v1'],  // 권장 명시
+      type: ['VerifiableCredential'],
       issuer,
       issuanceDate: new Date().toISOString(),
-      credentialSubject: subject,
+      credentialSubject: {
+        id: subject.id,
+        name: subject.name,
+      },
     },
     proofFormat: 'jwt',
   })
-  return credential
-})
 
-app.post('/vc/verify', async (req, res) => {
-  const { credential } = req.body
-  const result = await agent.verifyCredential({ credential })
-  return result
-})
+  const jwt = typeof vc === 'string' ? vc : vc?.proof?.jwt
 
-app.listen({ port: 4000 }, (err) => {
-  if (err) {
-    app.log.error(err)
-    process.exit(1)
+  if (!jwt) {
+    return res.status(500).send({ error: 'JWT VC 발급 실패' })
   }
-  console.log('✅ Fastify server started on http://localhost:4000')
+
+  return res.send({ jwt })  // 🔥 꼭 res.send 사용!
 })
+
+
+  // VC 검증
+  app.post('/vc/verify', async (req, res) => {
+    const { credential } = req.body
+
+    try {
+      const result = await agent.verifyCredential({ credential })
+
+
+      const decoded = typeof credential === 'string'
+        ? decodeJWT(credential).payload
+        : credential
+
+      console.log('🧠 decoded VC:', decoded)
+
+
+      const issuer = decoded.issuer || decoded.iss
+      const isAllowed = allowedIssuers.includes(issuer)
+
+      if (!isAllowed) {
+        return res.send({
+          verified: false,
+          error: {
+            code: 'UNAUTHORIZED_ISSUER',
+            message: '허용되지 않은 발급자 DID입니다.',
+          },
+          credential: decoded,
+        })
+      }
+
+      return res.send({
+        verified: true,
+        credential: decoded,
+      })
+
+    } catch (err) {
+      return res.send({
+        verified: false,
+        error: {
+          code: 'INVALID_SIGNATURE',
+          message: 'VC 서명 검증 실패',
+          detail: err.message,
+        },
+      })
+    }
+  })
+
+  app.listen({ port: 4000 }, (err) => {
+    if (err) {
+      app.log.error(err)
+      process.exit(1)
+    }
+    console.log('✅ Fastify server started on http://localhost:4000')
+  })
