@@ -1,31 +1,17 @@
 {
   "name": "blockchain_messenger",
   "version": "1.0.0",
-  "description": "",
+  "description": "Matrix 기반 블록체인 메신저 백엔드",
   "type": "module",
-  "main": "index.js",
+  "main": "didkit-server/matrixBot.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node ./didkit-server/matrixBot.js",
+    "sign-message": "node ./didkit-server/signMessage.js"
   },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/Eastwbenevolent/blockchain_messenger.git"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "bugs": {
-    "url": "https://github.com/Eastwbenevolent/blockchain_messenger/issues"
-  },
-  "homepage": "https://github.com/Eastwbenevolent/blockchain_messenger#readme",
   "dependencies": {
-    "@fastify/cors": "^11.0.1",
-    "@veramo/cli": "^6.0.0",
     "@veramo/core": "^5.6.0",
     "@veramo/credential-w3c": "^5.6.0",
     "@veramo/data-store": "^6.0.0",
-    "@veramo/data-store-json": "^6.0.0",
-    "@veramo/did-jwt": "^6.0.0",
     "@veramo/did-manager": "^5.6.0",
     "@veramo/did-provider-key": "^5.6.0",
     "@veramo/did-resolver": "^5.6.0",
@@ -33,16 +19,11 @@
     "@veramo/kms-local": "^5.6.0",
     "better-sqlite3": "^11.10.0",
     "bs58": "^6.0.0",
-    "cors": "^2.8.5",
     "did-resolver": "^4.1.0",
     "dotenv": "^17.2.1",
-    "express": "^5.1.0",
     "fastify": "^5.4.0",
-    "fastify-sensible": "^3.1.2",
     "key-did-resolver": "^4.0.0",
-    "matrix-js-sdk": "^37.11.0",
-    "qrcode": "^1.5.4",
-    "tweetnacl": "^1.0.3",
-    "typeorm": "^0.3.25"
+    "matrix-js-sdk": "^26.2.0",
+    "node-fetch": "^3.3.2"
   }
 }
