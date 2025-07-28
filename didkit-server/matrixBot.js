@@ -84,99 +84,51 @@ async function startBot() {
   console.log('✅ Veramo agent 초기화 완료')
 
   client.on('Room.timeline', async (event, room) => {
-    if (event.getType() !== 'm.room.message') return
-    if (event.getSender() === MATRIX_USER_ID) return
-    
-    const content = event.getContent()
-    const body = content.body
-    const roomId = room.roomId
+  try {
+    if (event.getType() !== 'm.room.message') return;
+    const content = event.getContent();
+    const body = content.body;
+    const roomId = room.roomId;
 
-    console.log('📥 수신된 VC 메시지:', body)
+    // JWT 감지
+    if (typeof body === 'string' && body.split('.').length === 3) {
+      const result = await agent.verifyCredential({ credential: body });
+      const vc = result.verifiableCredential || JSON.parse(Buffer.from(body.split('.')[1], 'base64').toString());
 
-    let credential
-    try {
-      credential = extractCredentialFromBody(body)
-    } catch (e) {
-      console.error('❌ VC 추출 실패:', e.message)
-      await client.sendTextMessage(roomId, '❌ 메시지에서 VC를 추출할 수 없습니다.')
-      return
-    }
+      const issuer = vc.issuer || vc.iss;
+      const subjectDid = vc.credentialSubject?.id || vc.sub;
+      const targetRoom = vc.credentialSubject?.room;
 
-    try {
-      const res = await fetch('http://localhost:4000/vc/verify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ credential }),
-      })
-
-      const result = await res.json()
-      const verified = result.verified
-      const vc = result.credential || {}
-
-      let msg
-
-      if (verified) {
-        const issuer = vc.issuer || vc.iss || '알 수 없음'
-        // 수정
-        const subjectDid =
-          vc.credentialSubject?.id || // LD-VC 형태로 전달될 때
-          vc.credentialSubject?.did || // 사용자가 did 키를 썼을 때
-          vc.sub ||                    // JWT VC에서는 sub 클레임에 저장됨
-          '알 수 없음';
-          const types = Array.isArray(vc.type || vc.vc?.type)
-            ? (vc.type || vc.vc?.type).filter(t => t !== 'VerifiableCredential').join(', ')
-            : '명시되지 않음'
-
-          const issuedAt = vc.issuanceDate || vc.nbf
-            ? new Date(vc.issuanceDate || vc.nbf * 1000).toLocaleString('ko-KR')
-            : '날짜 없음'   
-          // 자동 입장 처리 (VC에 room이 있다면)
-          const targetRoom = vc.credentialSubject?.room
-            if (targetRoom) {
-              await joinRoom(targetRoom)
-              await client.sendTextMessage(targetRoom, `🎉 인증 완료된 사용자 [${vc.credentialSubject.name || subjectDid}]가 입장했습니다.`)
-        }
-
-
-        msg = [
-          '✅ [VC 검증 완료]',
-          `발급자 DID: ${issuer}`,
-          `대상자 DID: ${subjectDid}`,
-          `VC 종류: ${types}`,
-          `발급일: ${issuedAt}`,
-          '',
-          '🎉 이 증명서는 유효하며 신뢰할 수 있습니다.',
-        ].join('\n')
-      } else {
-        const code = result.error?.code || 'UNKNOWN'
-        let reason
-
-        switch (code) {
-          case 'UNAUTHORIZED_ISSUER':
-            reason = '허용되지 않은 발급자 DID입니다.'
-            break
-          case 'INVALID_SIGNATURE':
-            reason = 'VC의 서명이 유효하지 않습니다.'
-            break
-          default:
-            reason = result.error?.message || '알 수 없는 오류'
-            break
-        }
-
-        msg = [
-          '❌ [VC 검증 실패]',
-          `사유: ${reason}`,
-          '',
-          '⚠️ 이 VC는 위조되었거나 유효하지 않습니다.',
-        ].join('\n')
+      if (!allowedIssuers.includes(issuer)) {
+        return client.sendTextMessage(roomId, '❌ 허용되지 않은 발급자입니다.');
       }
 
-      await client.sendTextMessage(roomId, msg)
-    } catch (err) {
-      console.error('❌ VC 검증 중 에러:', err)
-      await client.sendTextMessage(roomId, '❌ VC 검증 중 시스템 오류가 발생했습니다.')
+      if (targetRoom) {
+        await client.joinRoom(targetRoom);
+        await client.sendTextMessage(targetRoom, `🎉 ${vc.credentialSubject?.name || subjectDid} 님이 인증되어 입장했습니다.`);
+      }
+
+      const types = Array.isArray(vc.type) ? vc.type.filter(t => t !== 'VerifiableCredential').join(', ') : 'N/A';
+      const issuedAt = new Date(vc.issuanceDate || vc.nbf * 1000).toLocaleString('ko-KR');
+
+      const msg = [
+        '✅ [VC 검증 완료]',
+        `발급자 DID: ${issuer}`,
+        `대상자 DID: ${subjectDid}`,
+        `VC 종류: ${types}`,
+        `발급일: ${issuedAt}`,
+        '',
+        '🎉 이 증명서는 유효하며 신뢰할 수 있습니다.'
+      ].join('\n');
+
+      await client.sendTextMessage(roomId, msg);
     }
-  })
+  } catch (err) {
+    console.error('❌ VC 검증 에러:', err);
+    await client.sendTextMessage(room.roomId, '❌ VC 검증 실패: ' + err.message);
+  }
+});
+
 
   // ✅ 리스너 등록 후, 여기서 클라이언트 시작
   await client.startClient()
