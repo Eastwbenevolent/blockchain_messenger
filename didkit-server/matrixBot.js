@@ -130,6 +130,12 @@ async function startBot() {
           const issuedAt = vc.issuanceDate || vc.nbf
             ? new Date(vc.issuanceDate || vc.nbf * 1000).toLocaleString('ko-KR')
             : '날짜 없음'   
+          // 자동 입장 처리 (VC에 room이 있다면)
+          const targetRoom = vc.credentialSubject?.room
+            if (targetRoom) {
+              await joinRoom(targetRoom)
+              await client.sendTextMessage(targetRoom, `🎉 인증 완료된 사용자 [${vc.credentialSubject.name || subjectDid}]가 입장했습니다.`)
+        }
 
 
         msg = [

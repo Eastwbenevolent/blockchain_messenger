@@ -9,14 +9,13 @@
   const agent = await setupAgent()
   const require = createRequire(import.meta.url)
   const { decodeJWT } = require('./decode-jwt.cjs') // ✅ OK
-
+  
 
 
   // ✅ 허용된 발급자 목록
   const allowedIssuers = [
     'did:key:z6MkkH9QT9rUxnbwPRwTeatB48yrXwv5apPqXUwjZk4mnG3o'
   ]
-
   // 🧠 DID 자동 생성
   const dids = await agent.didManagerFind()
   if (dids.length === 0) {
@@ -33,11 +32,12 @@
   // ✅ 여기에서 vc를 사용하면 안 됨!! subject로부터 직접 추출해야 함
   const subjectId = subject.id || subject.did
   const subjectName = subject.name
+  const subjectRoom = subject.room || '알 수 없음'  // ✅ 여기에 초기화
 
   if (!subjectId || !subjectName) {
     return res
       .status(400)
-      .send({ error: 'subject.id나 subject.did와 subject.name이 필요합니다.' })
+      .send({ error: 'subject.id, name, room이 필요합니다.' })
   }
 
   try {
@@ -48,6 +48,7 @@
         credentialSubject: {
           id: subjectId,
           name: subjectName,
+          room: subjectRoom
         },
         '@context': ['https://www.w3.org/2018/credentials/v1'],
         type: ['VerifiableCredential'],
